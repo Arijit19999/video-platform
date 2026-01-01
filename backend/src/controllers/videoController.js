@@ -147,7 +147,7 @@ async function processVideo(videoId) {
 
 exports.assignViewers = async (req, res) => {
   try {
-    const { viewerIds } = req.body; // array of viewer userIds
+    const { viewerIds } = req.body; 
     const videoId = req.params.id;
 
     if (!Array.isArray(viewerIds) || viewerIds.length === 0) {
