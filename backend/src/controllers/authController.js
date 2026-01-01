@@ -2,6 +2,13 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: 'none', 
+  secure: false, 
+  path: '/',   
+};
+
 exports.register = async (req, res) => {
   try {
     const { email, password, role, organizationId } = req.body;
@@ -27,6 +34,8 @@ exports.register = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
+
+    res.cookie('token', token, COOKIE_OPTIONS);
 
     res.status(201).json({
       token,
@@ -61,6 +70,8 @@ exports.login = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
+
+    res.cookie('token', token, COOKIE_OPTIONS);
 
     res.json({
       token,

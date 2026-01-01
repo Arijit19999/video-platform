@@ -9,9 +9,11 @@ require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
 const videoRoutes = require('./routes/videos');
-
+const cookieParser = require('cookie-parser');
 const app = express();
 const httpServer = createServer(app);
+
+
 const io = new Server(httpServer, {
   cors: {
     origin: process.env.FRONTEND_URL || 'http://localhost:5173',
@@ -22,6 +24,7 @@ const io = new Server(httpServer, {
 
 global.io = io;
 
+app.use(cookieParser());
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true

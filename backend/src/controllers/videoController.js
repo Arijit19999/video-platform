@@ -35,13 +35,18 @@ exports.uploadVideo = async (req, res) => {
 
 exports.getVideos = async (req, res) => {
   try {
+    const filterStatus = req.query.status; 
+
     const baseQuery = {
-      organizationId: req.user.organizationId
+      organizationId: req.user.organizationId,
     };
 
-    
     if (req.user.role === 'viewer') {
       baseQuery.assignedViewers = req.user._id;
+    }
+
+    if (filterStatus && filterStatus !== 'all') {
+      baseQuery.sensitivityStatus = filterStatus;
     }
 
     const videos = await Video.find(baseQuery)
@@ -53,6 +58,7 @@ exports.getVideos = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
 
 exports.streamVideo = async (req, res) => {
   try {
@@ -159,13 +165,11 @@ exports.assignViewers = async (req, res) => {
     if (!video) {
       return res.status(404).json({ error: 'Video not found' });
     }
-
-    // Organization safety
+    
     if (video.organizationId !== req.user.organizationId) {
       return res.status(403).json({ error: 'Cross-organization access denied' });
     }
 
-    // Assign viewers (no duplicates)
     video.assignedViewers = [
       ...new Set([...video.assignedViewers, ...viewerIds])
     ];
