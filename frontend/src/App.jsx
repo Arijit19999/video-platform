@@ -1,99 +1,46 @@
-import { AuthProvider} from './context/AuthContext';
-import { useAuth } from './hooks/useAuth';
-import { useState } from 'react';
-import AuthForm from './components/auth/AuthForm';
-import VideoUpload from './components/video/VideoUpload';
-import VideoList from './components/video/VideoList';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
+import Layout from './components/Layout';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Dashboard from './pages/Dashboard';
+import Upload from './pages/Upload';
+import VideoLibrary from './pages/VideoLibrary';
+import VideoPlayer from './pages/VideoPlayer';
+import AdminPanel from './pages/AdminPanel';
+import NotFound from './pages/NotFound';
 
-// function Dashboard() {
-//   const { user, logout } = useAuth();
-//   const [refreshKey, setRefreshKey] = useState(0);
-
-//   return (
-//     <div className="min-h-screen bg-gray-100">
-//       <header className="bg-white shadow px-6 py-4 flex justify-between items-center">
-//         <h1 className="text-xl font-bold">Video Platform</h1>
-
-//         <div className="flex items-center gap-4">
-//           <span className="text-sm text-gray-600">
-//             {user.email} ({user.role})
-//           </span>
-//           <button
-//             onClick={logout}
-//             className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
-//           >
-//             Logout
-//           </button>
-//         </div>
-//       </header>
-
-//       <main className="p-6 max-w-7xl mx-auto">
-//         {(user.role === 'editor' || user.role === 'admin') && (
-//           <VideoUpload onUploadComplete={() => setRefreshKey(k => k + 1)} />
-//         )}
-
-//         <VideoList refresh={refreshKey} />
-//       </main>
-//     </div>
-//   );
-// }
-
-function Dashboard() {
-  const { user, logout } = useAuth();
-  const [refreshKey, setRefreshKey] = useState(0);
-
+const App = () => {
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-white border-b shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-          <h1 className="text-xl font-semibold text-gray-800">
-            Video Platform
-          </h1>
-
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">
-              {user.email} ({user.role})
-            </span>
-            <button
-              onClick={logout}
-              className="bg-red-500 text-white px-4 py-1.5 rounded-md hover:bg-red-600"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
-        {(user.role === 'editor' || user.role === 'admin') && (
-          <VideoUpload onUploadComplete={() => setRefreshKey(k => k + 1)} />
-        )}
-
-        <VideoList refresh={refreshKey} />
-      </main>
-    </div>
+    <ErrorBoundary>
+      <AuthProvider>
+        <BrowserRouter>
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              style: { background: '#1f2937', color: '#fff', border: '1px solid #374151' },
+            }}
+          />
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+              <Route index element={<Navigate to="/dashboard" replace />} />
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="upload" element={<ProtectedRoute roles={['editor', 'admin']}><Upload /></ProtectedRoute>} />
+              <Route path="videos" element={<VideoLibrary />} />
+              <Route path="videos/:id" element={<VideoPlayer />} />
+              <Route path="admin" element={<ProtectedRoute roles={['admin']}><AdminPanel /></ProtectedRoute>} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ErrorBoundary>
   );
-}
+};
 
-
-function AppContent() {
-  const { user, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-600">Loading...</p>
-      </div>
-    );
-  }
-
-  return user ? <Dashboard /> : <AuthForm />;
-}
-
-export default function App() {
-  return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
-  );
-}
+export default App;
