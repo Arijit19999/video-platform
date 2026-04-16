@@ -2,6 +2,25 @@
 
 A full-stack application for uploading videos, processing them through a sensitivity analysis pipeline with real-time progress tracking, and streaming approved content — built with Node.js, Express, MongoDB, React, and Socket.io.
 
+## 🚀 Live Demo
+
+- **Frontend:** https://video-platform-ashen-mu.vercel.app/
+- **Backend API:** https://video-platform-backend-xkrt.onrender.com
+- **API Health Check:** https://video-platform-backend-xkrt.onrender.com/api/health
+- **Demo Video:** https://www.loom.com/share/86ad621fbfef45e5bcd86a02587d17fd
+
+### Demo Credentials
+
+| Role   | Email           | Password    |
+| ------ | --------------- | ----------- |
+| Admin  | admin@demo.com  | password123 |
+| Editor | editor@demo.com | password123 |
+| Viewer | viewer@demo.com | password123 |
+
+> **Note:** The backend is hosted on Render's free tier and sleeps after 15 minutes of inactivity. The first request after a cold start may take ~30 seconds to wake up.
+
+---
+
 ## Architecture Overview
 
 ```
@@ -34,15 +53,15 @@ A full-stack application for uploading videos, processing them through a sensiti
 
 ## Tech Stack
 
-| Layer       | Technology                              |
-|-------------|-----------------------------------------|
-| Frontend    | React 18, Vite, Tailwind CSS v4         |
-| Backend     | Node.js, Express.js                     |
-| Database    | MongoDB + Mongoose                      |
-| Real-Time   | Socket.io                               |
-| Auth        | JWT (jsonwebtoken + bcryptjs)           |
-| Upload      | Multer                                  |
-| Styling     | Tailwind CSS, Lucide React icons        |
+| Layer     | Technology                       |
+| --------- | -------------------------------- |
+| Frontend  | React 18, Vite, Tailwind CSS v4  |
+| Backend   | Node.js, Express.js              |
+| Database  | MongoDB + Mongoose               |
+| Real-Time | Socket.io                        |
+| Auth      | JWT (jsonwebtoken + bcryptjs)    |
+| Upload    | Multer                           |
+| Styling   | Tailwind CSS, Lucide React icons |
 
 ## Prerequisites
 
@@ -55,7 +74,7 @@ A full-stack application for uploading videos, processing them through a sensiti
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-username/video-app.git
+git clone https://github.com/Arijit19999/video-platform.git
 cd video-app
 ```
 
@@ -99,11 +118,11 @@ npm run seed
 ```
 
 This creates three accounts:
-| Role   | Email             | Password     |
+| Role | Email | Password |
 |--------|-------------------|--------------|
-| Admin  | admin@demo.com    | password123  |
-| Editor | editor@demo.com   | password123  |
-| Viewer | viewer@demo.com   | password123  |
+| Admin | admin@demo.com | password123 |
+| Editor | editor@demo.com | password123 |
+| Viewer | viewer@demo.com | password123 |
 
 ### 5. Start Development Servers
 
@@ -121,57 +140,136 @@ Open http://localhost:5173
 
 ### Authentication
 
-| Method | Endpoint          | Body                              | Description      |
-|--------|-------------------|-----------------------------------|------------------|
-| POST   | /api/auth/register | { name, email, password, role }  | Create account   |
-| POST   | /api/auth/login    | { email, password }              | Login, get JWT   |
-| GET    | /api/auth/me       | —                                | Get current user |
+| Method | Endpoint           | Body                            | Description      |
+| ------ | ------------------ | ------------------------------- | ---------------- |
+| POST   | /api/auth/register | { name, email, password, role } | Create account   |
+| POST   | /api/auth/login    | { email, password }             | Login, get JWT   |
+| GET    | /api/auth/me       | —                               | Get current user |
 
 ### Videos
 
-| Method | Endpoint                | Auth     | Description                        |
-|--------|-------------------------|----------|------------------------------------|
-| POST   | /api/videos/upload      | Editor+  | Upload video (multipart/form-data) |
-| GET    | /api/videos             | All      | List videos (with filters)         |
-| GET    | /api/videos/:id         | Owner/Admin | Get video details               |
-| DELETE | /api/videos/:id         | Editor+  | Delete video                       |
-| GET    | /api/videos/:id/stream  | Owner/Admin | Stream video (range requests)   |
+| Method | Endpoint               | Auth        | Description                        |
+| ------ | ---------------------- | ----------- | ---------------------------------- |
+| POST   | /api/videos/upload     | Editor+     | Upload video (multipart/form-data) |
+| GET    | /api/videos            | All         | List videos (with filters)         |
+| GET    | /api/videos/:id        | Owner/Admin | Get video details                  |
+| DELETE | /api/videos/:id        | Editor+     | Delete video                       |
+| GET    | /api/videos/:id/stream | Owner/Admin | Stream video (range requests)      |
 
 Query params for listing: `status`, `search`, `sortBy`, `order`
 
 ### Admin
 
-| Method | Endpoint                    | Auth  | Description         |
-|--------|-----------------------------|-------|---------------------|
-| GET    | /api/admin/users            | Admin | List all users      |
-| PATCH  | /api/admin/users/:id/role   | Admin | Change user role    |
-| DELETE | /api/admin/users/:id        | Admin | Delete user         |
-| GET    | /api/admin/stats            | Admin | System statistics   |
+| Method | Endpoint                  | Auth  | Description       |
+| ------ | ------------------------- | ----- | ----------------- |
+| GET    | /api/admin/users          | Admin | List all users    |
+| PATCH  | /api/admin/users/:id/role | Admin | Change user role  |
+| DELETE | /api/admin/users/:id      | Admin | Delete user       |
+| GET    | /api/admin/stats          | Admin | System statistics |
 
-## RBAC Roles
+## Role-Based Access Control (RBAC)
 
-| Permission          | Viewer | Editor | Admin |
-|---------------------|--------|--------|-------|
-| View own videos     | ✅     | ✅     | ✅    |
-| Stream safe videos  | ✅     | ✅     | ✅    |
-| Upload videos       | ❌     | ✅     | ✅    |
-| Delete own videos   | ❌     | ✅     | ✅    |
-| View all org videos | ❌     | ❌     | ✅    |
-| Manage users        | ❌     | ❌     | ✅    |
+The system implements three distinct roles with strict permission boundaries:
+
+### Permission Matrix
+
+| Permission                       | Viewer | Editor | Admin |
+| -------------------------------- | :----: | :----: | :---: |
+| **Video Access**                 |        |        |       |
+| View safe videos in own org      |   ✅   |   ❌   |  ✅   |
+| View own uploaded videos         |   —    |   ✅   |  ✅   |
+| View flagged/processing videos   |   ❌   |   ❌   |  ✅   |
+| Stream safe videos               |   ✅   |   ✅   |  ✅   |
+| Review flagged videos (override) |   ❌   |   ❌   |  ✅   |
+| **Video Management**             |        |        |       |
+| Upload videos                    |   ❌   |   ✅   |  ✅   |
+| Delete own videos                |   ❌   |   ✅   |  ✅   |
+| Delete any video in org          |   ❌   |   ❌   |  ✅   |
+| **User Management**              |        |        |       |
+| View user list                   |   ❌   |   ❌   |  ✅   |
+| Change user roles                |   ❌   |   ❌   |  ✅   |
+| Delete users                     |   ❌   |   ❌   |  ✅   |
+| View system statistics           |   ❌   |   ❌   |  ✅   |
+
+### Role Descriptions
+
+- **Viewer** — Consumer role. Sees all **safe** videos across their organisation but cannot upload, delete, or access flagged content.
+- **Editor** — Content creator role. Uploads and manages their own videos. Isolated from other editors' content within the same org.
+- **Admin** — Full control within their organisation. Sees all videos regardless of status, manages users, and can override flagged content for moderation review.
+
+### Multi-Tenant Isolation
+
+Users belong to an organisation (`orgId`). All data queries are scoped to `orgId`, ensuring organisations are fully isolated from each other. A Viewer in `org-a` cannot see any videos from `org-b`, even safe ones.
+
+---
 
 ## Sensitivity Analysis Pipeline
 
-The processing service simulates a 5-stage analysis:
+Videos go through a 5-stage asynchronous pipeline after upload, with real-time progress emitted via Socket.io:
 
-1. **Validation** — File format verification (10%)
-2. **Frame Extraction** — Video frame sampling (30%)
-3. **Content Analysis** — Pattern detection scan (50%)
-4. **Classification** — Sensitivity scoring (75%)
-5. **Report Generation** — Final determination (90% → 100%)
+| Stage | Description                    | Progress |
+| ----- | ------------------------------ | :------: |
+| 1     | Validating file format         |   10%    |
+| 2     | Extracting video frames        |   30%    |
+| 3     | Analysing content patterns     |   50%    |
+| 4     | Running sensitivity classifier |   75%    |
+| 5     | Generating report              |   90%    |
+| 6     | Final classification persisted |   100%   |
 
-Results: `safe` or `flagged` — determined by a hash-based classifier (placeholder for production ML model).
+**Outcome:** `safe` or `flagged`
 
-All stages emit real-time Socket.io events to the connected user.
+### Current Implementation (Demo)
+
+This assignment uses a **keyword-based classifier** as a pluggable placeholder:
+
+```js
+const FLAGGED_KEYWORDS = [
+  "violent",
+  "violence",
+  "explicit",
+  "nsfw",
+  "adult",
+  "gore",
+  "harmful",
+  "unsafe",
+  "restricted",
+  "inappropriate",
+  "offensive",
+  "abuse",
+];
+```
+
+If any keyword appears in the video title (case-insensitive), the video is flagged. Otherwise, it's marked safe. This is deterministic and controllable — useful for demonstrating the architecture without requiring paid ML APIs.
+
+### Production-Grade Alternatives
+
+In a production environment, the `determineSensitivity()` function would be replaced with one of:
+
+| Service                             | What It Does                                                    |
+| ----------------------------------- | --------------------------------------------------------------- |
+| **AWS Rekognition Video**           | Frame-level moderation for nudity, violence, weapons, self-harm |
+| **Google Video Intelligence API**   | Explicit content detection, text/logo/celebrity recognition     |
+| **Azure Content Moderator**         | OCR + adult/racy classification across frames                   |
+| **Hive Moderation**                 | Multi-category content classification (NSFW, drugs, hate, etc.) |
+| **OpenAI Moderation API**           | Used on extracted audio transcripts (via Whisper)               |
+| **Custom CNN (TensorFlow/PyTorch)** | Self-hosted model trained on domain-specific labelled dataset   |
+
+### Multi-Modal Analysis Approach
+
+A production pipeline would combine multiple signals:
+
+1. **Frame sampling** — FFmpeg extracts keyframes every N seconds
+2. **Image classification** — Each frame sent to an ML model (e.g., Rekognition) for nudity/violence scores
+3. **Audio transcription** — Whisper/AWS Transcribe converts speech to text
+4. **Text moderation** — Transcript analysed by OpenAI Moderation or Perspective API
+5. **Metadata checks** — Title, description, tags scanned for prohibited terms
+6. **Aggregation** — Weighted scoring across all signals produces a final classification with confidence level
+
+### Why This Architecture is Production-Ready
+
+The codebase separates **orchestration** (pipeline stages, status updates, real-time events) from **detection** (the `determineSensitivity` function). Swapping to a real ML service only requires editing one function — no changes to the upload flow, database schema, or frontend. This pluggability is the actual engineering value demonstrated here.
+
+All stages emit Socket.io events (`processing:start`, `processing:progress`, `processing:complete`) to the uploading user's private room, enabling real-time UI updates without polling.
 
 ## Assumptions & Design Decisions
 
@@ -216,7 +314,7 @@ CLOUDINARY_API_SECRET=your-api-secret
 CLIENT_URL=https://your-frontend.vercel.app
 ```
 
-7. Deploy and copy the URL (e.g., `https://video-app-backend.onrender.com`)
+7. Deploy and copy the URL (e.g., `https://video-platform-backend-xkrt.onrender.com`)
 
 ### 4. Frontend — Vercel (Free)
 
@@ -251,6 +349,14 @@ Tests use Node's built-in test runner with supertest:
 
 - `tests/auth.test.js` — Registration, login, token validation, protected routes
 - `tests/video.test.js` — Upload permissions, RBAC enforcement, CRUD operations, admin endpoints
+
+## Author
+
+**Arijit**
+
+- GitHub: [@Arijit19999](https://github.com/Arijit19999)
+- Email: your-email@example.com
+- LinkedIn: [your-linkedin-url]
 
 ## License
 
