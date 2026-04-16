@@ -1,32 +1,68 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const videoSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  filename: { type: String, required: true },
-  filepath: { type: String, required: true },
-  size: { type: Number, required: true },
-  duration: Number,
-  mimetype: String,
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  assignedViewers: [
-    {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
-    }
-  ],
-  organizationId: { type: String, required: true },
-  processingStatus: { 
-    type: String, 
-    enum: ['pending', 'processing', 'completed', 'failed'], 
-    default: 'pending' 
+  title: {
+    type: String,
+    required: true,
+    trim: true,
   },
-  sensitivityStatus: { 
-    type: String, 
-    enum: ['safe', 'flagged', 'unknown'], 
-    default: 'unknown' 
+  filename: {
+    type: String,
+    required: true,
   },
-  
-  processingProgress: { type: Number, default: 0 }
+  originalName: {
+    type: String,
+    required: true,
+  },
+  mimetype: {
+    type: String,
+    required: true,
+  },
+  size: {
+    type: Number,
+    required: true,
+  },
+  duration: {
+    type: Number,
+    default: 0,
+  },
+  status: {
+    type: String,
+    enum: ['pending', 'processing', 'safe', 'flagged'],
+    default: 'pending',
+  },
+  processingProgress: {
+    type: Number,
+    default: 0,
+  },
+  processingStage: {
+    type: String,
+    default: '',
+  },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+  },
+  orgId: {
+    type: String,
+    required: true,
+  },
+  thumbnail: {
+    type: String,
+    default: '',
+  },
+  cloudinaryUrl: {
+    type: String,
+    default: '',
+  },
+  cloudinaryId: {
+    type: String,
+    default: '',
+  },
 }, { timestamps: true });
 
-module.exports = mongoose.model('Video', videoSchema);
+videoSchema.index({ userId: 1, status: 1 });
+videoSchema.index({ orgId: 1 });
+
+export default mongoose.model('Video', videoSchema);

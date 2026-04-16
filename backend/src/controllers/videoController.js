@@ -1,88 +1,189 @@
-const Video = require('../models/Video');
-const fs = require('fs');
-const path = require('path');
+import fs from "fs";
+import path from "path";
+import Video from "../models/Video.js";
+import config from "../config/index.js";
+import { processVideo } from "../services/processingService.js";
 
-exports.uploadVideo = async (req, res) => {
+const isCloudinary = process.env.STORAGE_TYPE === "cloudinary";
+
+export const uploadVideo = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ error: 'No video file uploaded' });
+      return res.status(400).json({ message: "No video file provided." });
     }
 
-    const video = new Video({
-      title: req.body.title || req.file.originalname,
-      filename: req.file.filename,
-      filepath: req.file.path,
-      size: req.file.size,
+    const { title } = req.body;
+    if (!title) {
+      return res.status(400).json({ message: "Video title is required." });
+    }
+
+    const videoData = {
+      title,
+      originalName: req.file.originalname,
       mimetype: req.file.mimetype,
+      size: req.file.size,
       userId: req.user._id,
-      organizationId: req.user.organizationId
-    });
+      orgId: req.user.orgId,
+      status: "pending",
+    };
 
-    await video.save();
+    if (isCloudinary) {
+      videoData.filename = req.file.filename || req.file.public_id;
+      videoData.cloudinaryUrl = req.file.path;
+      videoData.cloudinaryId = req.file.filename || req.file.public_id;
+    } else {
+      videoData.filename = req.file.filename;
+    }
 
-    global.io.emit(`video:${req.user._id}`, {
-      type: 'upload_complete',
-      videoId: video._id
-    });
+    const video = await Video.create(videoData);
 
-    processVideo(video._id);
+    if (process.env.NODE_ENV !== "test") {
+      const io = req.app.get("io");
+      processVideo(video, io);
+    }
 
     res.status(201).json({ video });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: "Upload failed.", error: error.message });
   }
 };
 
-exports.getVideos = async (req, res) => {
+export const getVideos = async (req, res) => {
   try {
-    const filterStatus = req.query.status; 
+    const { status, search, sortBy, order } = req.query;
+    const filter = {};
 
-    const baseQuery = {
-      organizationId: req.user.organizationId,
-    };
-
-    if (req.user.role === 'viewer') {
-      baseQuery.assignedViewers = req.user._id;
+    if (req.user.role === "admin") {
+      filter.orgId = req.user.orgId;
+    } else if (req.user.role === "viewer") {
+      filter.orgId = req.user.orgId;
+      filter.status = "safe";
+    } else {
+      filter.userId = req.user._id;
     }
 
-    if (filterStatus && filterStatus !== 'all') {
-      baseQuery.sensitivityStatus = filterStatus;
+    if (status && status !== "all") {
+      filter.status = status;
     }
 
-    const videos = await Video.find(baseQuery)
-      .populate('userId', 'email role')
-      .sort({ createdAt: -1 });
+    if (search) {
+      filter.title = { $regex: search, $options: "i" };
+    }
+
+    const sortOptions = {};
+    sortOptions[sortBy || "createdAt"] = order === "asc" ? 1 : -1;
+
+    const videos = await Video.find(filter)
+      .populate("userId", "name email")
+      .sort(sortOptions);
 
     res.json({ videos });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res
+      .status(500)
+      .json({ message: "Failed to fetch videos.", error: error.message });
   }
 };
 
-
-exports.streamVideo = async (req, res) => {
+export const getVideo = async (req, res) => {
   try {
-    const video = await Video.findById(req.params.id);
-    
+    const video = await Video.findById(req.params.id).populate(
+      "userId",
+      "name email",
+    );
+
     if (!video) {
-      return res.status(404).json({ error: 'Video not found' });
+      return res.status(404).json({ message: "Video not found." });
     }
 
-    if (video.organizationId !== req.user.organizationId) {
-      return res.status(403).json({ error: 'Access denied' });
+    const isOwner = video.userId._id.toString() === req.user._id.toString();
+    const isAdmin = req.user.role === "admin" && video.orgId === req.user.orgId;
+    const isViewerWithAccess =
+      req.user.role === "viewer" &&
+      video.orgId === req.user.orgId &&
+      video.status === "safe";
+
+    if (!isOwner && !isAdmin && !isViewerWithAccess) {
+      return res.status(403).json({ message: "Access denied." });
+    }
+
+    res.json({ video });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Failed to fetch video.", error: error.message });
+  }
+};
+
+export const deleteVideo = async (req, res) => {
+  try {
+    const video = await Video.findById(req.params.id);
+
+    if (!video) {
+      return res.status(404).json({ message: "Video not found." });
     }
 
     if (
-      req.user.role === 'viewer' &&
-      !video.assignedViewers.some(
-        viewerId => viewerId.toString() === req.user._id.toString()
-      )
+      req.user.role !== "admin" &&
+      video.userId.toString() !== req.user._id.toString()
     ) {
-      return res.status(403).json({ error: 'Access denied (not assigned)' });
+      return res.status(403).json({ message: "Access denied." });
     }
 
-    const videoPath = video.filepath;
-    const stat = fs.statSync(videoPath);
+    if (isCloudinary && video.cloudinaryId) {
+      const { cloudinary } = await import("../middleware/cloudinaryUpload.js");
+      await cloudinary.uploader.destroy(video.cloudinaryId, {
+        resource_type: "video",
+      });
+    } else {
+      const filePath = path.join(config.uploadDir, video.filename);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+
+    await Video.findByIdAndDelete(req.params.id);
+
+    res.json({ message: "Video deleted successfully." });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Failed to delete video.", error: error.message });
+  }
+};
+
+export const streamVideo = async (req, res) => {
+  try {
+    const video = await Video.findById(req.params.id);
+
+    if (!video) {
+      return res.status(404).json({ message: "Video not found." });
+    }
+
+    if (
+      req.user.role !== "admin" &&
+      video.userId.toString() !== req.user._id.toString()
+    ) {
+      const isViewerWithAccess =
+        req.user.role === "viewer" &&
+        video.orgId === req.user.orgId &&
+        video.status === "safe";
+      if (!isViewerWithAccess) {
+        return res.status(403).json({ message: "Access denied." });
+      }
+    }
+
+    if (isCloudinary && video.cloudinaryUrl) {
+      return res.redirect(video.cloudinaryUrl);
+    }
+
+    const filePath = path.join(config.uploadDir, video.filename);
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ message: "Video file not found on disk." });
+    }
+
+    const stat = fs.statSync(filePath);
     const fileSize = stat.size;
     const range = req.headers.range;
 
@@ -90,98 +191,35 @@ exports.streamVideo = async (req, res) => {
       const parts = range.replace(/bytes=/, "").split("-");
       const start = parseInt(parts[0], 10);
       const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-      const chunksize = (end - start) + 1;
-      const file = fs.createReadStream(videoPath, { start, end });
-      
+      const chunkSize = end - start + 1;
+
+      if (start >= fileSize) {
+        return res
+          .status(416)
+          .json({ message: "Requested range not satisfiable." });
+      }
+
+      const stream = fs.createReadStream(filePath, { start, end });
+
       res.writeHead(206, {
-        'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-        'Accept-Ranges': 'bytes',
-        'Content-Length': chunksize,
-        'Content-Type': video.mimetype,
+        "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+        "Accept-Ranges": "bytes",
+        "Content-Length": chunkSize,
+        "Content-Type": video.mimetype,
       });
-      
-      file.pipe(res);
+
+      stream.pipe(res);
     } else {
       res.writeHead(200, {
-        'Content-Length': fileSize,
-        'Content-Type': video.mimetype,
+        "Content-Length": fileSize,
+        "Content-Type": video.mimetype,
       });
-      fs.createReadStream(videoPath).pipe(res);
+
+      fs.createReadStream(filePath).pipe(res);
     }
   } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-async function processVideo(videoId) {
-  const video = await Video.findById(videoId);
-  
-  global.io.emit(`video:${video.userId}`, {
-    type: 'processing_started',
-    videoId: video._id,
-    progress: 0
-  });
-
-  video.processingStatus = 'processing';
-  await video.save();
-
-  for (let i = 0; i <= 100; i += 10) {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    video.processingProgress = i;
-    await video.save();
-    
-    global.io.emit(`video:${video.userId}`, {
-      type: 'processing_progress',
-      videoId: video._id,
-      progress: i
-    });
-  }
-
-  const sensitivityScore = Math.random();
-  video.sensitivityStatus = sensitivityScore > 0.7 ? 'flagged' : 'safe';
-  video.processingStatus = 'completed';
-  video.processingProgress = 100;
-  await video.save();
-
-  global.io.emit(`video:${video.userId}`, {
-    type: 'processing_complete',
-    videoId: video._id,
-    sensitivityStatus: video.sensitivityStatus
-  });
-}
-
-exports.assignViewers = async (req, res) => {
-  try {
-    const { viewerIds } = req.body; 
-    const videoId = req.params.id;
-
-    if (!Array.isArray(viewerIds) || viewerIds.length === 0) {
-      return res.status(400).json({ error: 'viewerIds must be a non-empty array' });
-    }
-
-    const video = await Video.findById(videoId);
-
-    if (!video) {
-      return res.status(404).json({ error: 'Video not found' });
-    }
-    
-    if (video.organizationId !== req.user.organizationId) {
-      return res.status(403).json({ error: 'Cross-organization access denied' });
-    }
-
-    video.assignedViewers = [
-      ...new Set([...video.assignedViewers, ...viewerIds])
-    ];
-
-    await video.save();
-
-    res.json({
-      message: 'Viewers assigned successfully',
-      assignedViewers: video.assignedViewers
-    });
-  } catch (error) {
-    console.error('Assign viewers error:', error);
-    res.status(500).json({ error: 'Failed to assign viewers' });
+    res
+      .status(500)
+      .json({ message: "Streaming failed.", error: error.message });
   }
 };

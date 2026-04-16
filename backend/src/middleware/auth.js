@@ -1,26 +1,33 @@
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+import jwt from 'jsonwebtoken';
+import config from '../config/index.js';
+import User from '../models/User.js';
 
-exports.authenticate = async (req, res, next) => {
+export const verifyToken = async (req, res, next) => {
   try {
-    // const token = req.headers.authorization?.split(' ')[1];
-    const token = req.cookies?.token || req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ error: 'No token provided' });
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'Access denied. No token provided.' });
+    }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = await User.findById(decoded.id);
-    if (!req.user) return res.status(401).json({ error: 'Invalid token' });
-    
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, config.jwtSecret);
+    const user = await User.findById(decoded.id).select('-password');
+
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid token. User not found.' });
+    }
+
+    req.user = user;
     next();
   } catch (error) {
-    res.status(401).json({ error: 'Authentication failed' });
+    return res.status(401).json({ message: 'Invalid or expired token.' });
   }
 };
 
-exports.authorize = (...roles) => {
+export const requireRole = (...roles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'Insufficient permissions' });
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({ message: 'Insufficient permissions.' });
     }
     next();
   };
