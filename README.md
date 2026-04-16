@@ -355,9 +355,4 @@ Tests use Node's built-in test runner with supertest:
 **Arijit**
 
 - GitHub: [@Arijit19999](https://github.com/Arijit19999)
-- Email: your-email@example.com
-- LinkedIn: [your-linkedin-url]
-
-## License
-
-MIT
+- Email: arijitdutta691999@gmail.com
